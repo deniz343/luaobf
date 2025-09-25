@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lua Obfuscator Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Babel Standalone for JSX compilation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .code {
+            font-family: 'Source Code Pro', monospace;
+        }
+        /* For Webkit browsers like Chrome, Safari */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: rgba(75, 85, 99, 0.7);
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(107, 114, 128, 0.8);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.1.1/client",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-900 text-white">
+<div id="root"></div>
+
+<script type="text/babel" data-type="module">
+// --- CONFIGURATION ---
+// ÖNEMLİ: Lütfen "YOUR_API_KEY_HERE" yazan yeri kendi Google AI API anahtarınızla değiştirin.
+// Tarayıcı ortamında Node.js'teki gibi `process.env` bulunmaz.
+// Bu küçük betik, uygulamanın doğru çalışmasını sağlamak için bunu simüle eder.
+window.process = {
+  env: {
+    API_KEY: "YOUR_API_KEY_HERE"
+  }
+};
+// ---------------------
+
+import React, { useState, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
+import { GoogleGenAI } from "@google/genai";
+
+//======= SERVICES =======//
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const PROMPT = `
+Sen çok gelişmiş bir Lua kodu karıştırıcısısın. Görevin, aşağıdaki Lua kodunu alıp işlevsel olarak aynı kalmasını sağlarken, okunmasını ve tersine mühendislik yapılmasını mümkün olduğunca zorlaştırmaktır. 
+
+Değişken adlarını anlamsız isimlerle değiştirme, string şifreleme, kontrol akışını düzleştirme, gereksiz kod ekleme ve sayısal sabitleri gizleme gibi teknikler kullan. 
+
+Kesinlikle herhangi bir açıklama, yorum veya markdown formatı ekleme. Sadece ve sadece ham, karıştırılmış Lua kodunu çıktı olarak ver.
+`.trim();
+
+const obfuscateLuaCode = async (code) => {
+    if (!process.env.API_KEY || process.env.API_KEY === "YOUR_API_KEY_HERE") {
+        return "Lütfen index.html dosyasındaki API anahtarını ayarlayın.";
+    }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `${PROMPT}\n\n---\n\n${code}`,
+            config: {
+                temperature: 0.5,
+                topP: 0.95,
+                topK: 64,
+            }
+        });
+
+        let text = response.text.trim();
+        
+        if (text.startsWith('```lua')) {
+            text = text.substring(6, text.length - 3).trim();
+        } else if (text.startsWith('```')) {
+            text = text.substring(3, text.length - 3).trim();
+        }
+
+        return text;
+    } catch (error) {
+        console.error("Error calling Gemini API:", error);
+        throw new Error("Failed to obfuscate code.");
+    }
+};
+
+
+//======= ICONS =======//
+const ShieldCheckIcon = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" />
+    </svg>
+);
+
+const CopyIcon = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+    </svg>
+);
+
+const CheckIcon = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+);
+
+const MagicWandIcon = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.998 15.998 0 011.622-3.385m5.043.025a2.25 2.25 0 013.285-2.457m-3.285 2.457a3 3 0 005.78-1.128 2.25 2.25 0 012.4-2.245 4.5 4.5 0 00-8.4 2.245c0 .399.078.78.22 1.128zm0 0a15.998 15.998 0 00-3.388 1.62m5.043-.025a15.998 15.998 0 01-1.622 3.385m3.285-2.457a2.25 2.25 0 00-3.285 2.457m3.285-2.457l-2.25-2.25 2.25 2.25 2.25-2.25-2.25 2.25z" />
+    </svg>
+);
+
+
+//======= COMPONENTS =======//
+const LoadingSpinner = () => {
+    return (
+        <div className="flex flex-col items-center justify-center text-center">
+            <div className="relative h-24 w-24">
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-500/30"></div>
+                <div className="absolute inset-0 rounded-full border-t-4 border-t-cyan-500 animate-spin"></div>
+            </div>
+            <p className="mt-4 text-lg font-semibold tracking-wider text-cyan-300">AI Analiz Ediyor...</p>
+        </div>
+    );
+};
+
+const Header = () => {
+    return (
+        <header className="py-4 px-8 bg-black/30 backdrop-blur-sm border-b border-indigo-500/30">
+            <div className="container mx-auto flex items-center justify-center">
+                <ShieldCheckIcon className="w-10 h-10 text-cyan-400 animate-pulse" />
+                <h1 className="ml-4 text-3xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500">
+                    Lua Obfuscator Pro
+                </h1>
+            </div>
+        </header>
+    );
+};
+
+const Footer = () => {
+    return (
+        <footer className="py-4 px-8 text-center text-xs text-gray-500 bg-black/20 mt-8">
+            <p>Powered by Gemini API. Designed for security and performance.</p>
+        </footer>
+    );
+};
+
+const CodeEditor = ({ label, value, onChange, placeholder, readOnly = false, isLoading = false }) => {
+    const [copied, setCopied] = useState(false);
+    
+    const handleCopy = () => {
+        if (value) {
+            navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+    
+    return (
+        <div className="h-full flex flex-col bg-gray-900/50 border border-indigo-500/30 rounded-lg shadow-lg backdrop-blur-sm transition-all duration-300 focus-within:border-cyan-400 focus-within:shadow-cyan-500/20">
+            <div className="flex justify-between items-center p-3 border-b border-indigo-500/30">
+                <h2 className="text-lg font-semibold tracking-wide text-gray-300">{label}</h2>
+                <button
+                    onClick={handleCopy}
+                    disabled={!value}
+                    className="flex items-center px-3 py-1 bg-gray-700/50 hover:bg-cyan-600/50 disabled:bg-gray-800 disabled:cursor-not-allowed rounded-md transition-all duration-200 text-sm"
+                >
+                    {copied ? <CheckIcon className="w-4 h-4 mr-2 text-green-400" /> : <CopyIcon className="w-4 h-4 mr-2" />}
+                    {copied ? 'Kopyalandı!' : 'Kopyala'}
+                </button>
+            </div>
+            <div className="relative flex-grow">
+                <textarea
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    readOnly={readOnly}
+                    className="code w-full h-full p-4 bg-transparent text-gray-200 resize-none outline-none leading-relaxed text-sm"
+                    style={{ minHeight: '300px' }}
+                    spellCheck="false"
+                />
+                 {isLoading && (
+                    <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-b-lg">
+                        <LoadingSpinner />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ObfuscateButton = ({ isLoading, onClick }) => {
+    return (
+        <button
+            onClick={onClick}
+            disabled={isLoading}
+            className="group relative inline-flex items-center justify-center p-0.5 mb-2 me-2 overflow-hidden text-sm font-medium text-gray-900 rounded-lg bg-gradient-to-br from-purple-600 to-blue-500 hover:text-white dark:text-white focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            <span className="relative flex items-center px-8 py-4 transition-all ease-in duration-75 bg-white dark:bg-gray-900 rounded-md group-hover:bg-opacity-0">
+                {isLoading ? (
+                    <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Karıştırılıyor...
+                    </>
+                ) : (
+                    <>
+                        <MagicWandIcon className="w-6 h-6 mr-3 transition-transform duration-300 group-hover:rotate-45" />
+                        Karıştır
+                    </>
+                )}
+            </span>
+        </button>
+    );
+};
+
+
+//======= MAIN APP =======//
+const App = () => {
+    const [originalCode, setOriginalCode] = useState('-- Örnek Lua kodu\nfunction greet(name)\n  local message = "Merhaba, " .. name .. "!"\n  print(message)\nend\n\ngreet("Dünya")');
+    const [obfuscatedCode, setObfuscatedCode] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const handleObfuscate = useCallback(async () => {
+        if (!originalCode.trim()) {
+            setError("Lütfen karıştırılacak bir kod girin.");
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        setObfuscatedCode('');
+
+        try {
+            const result = await obfuscateLuaCode(originalCode);
+            setObfuscatedCode(result);
+        } catch (err) {
+            console.error(err);
+            setError("Bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [originalCode]);
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-900/50 to-gray-900 text-gray-100 flex flex-col">
+            <Header />
+            <main className="flex-grow flex flex-col items-center justify-center p-4 md:p-8">
+                <div className="w-full max-w-7xl flex flex-col lg:flex-row gap-6">
+                    <div className="flex-1">
+                        <CodeEditor
+                            label="Orijinal Kod"
+                            value={originalCode}
+                            onChange={(e) => setOriginalCode(e.target.value)}
+                            placeholder="Lua kodunuzu buraya yapıştırın..."
+                        />
+                    </div>
+                    
+                    <div className="flex flex-col items-center justify-center lg:px-4">
+                       <ObfuscateButton isLoading={isLoading} onClick={handleObfuscate} />
+                    </div>
+
+                    <div className="flex-1">
+                        <CodeEditor
+                            label="Karıştırılmış Kod"
+                            value={obfuscatedCode}
+                            placeholder="Karıştırılmış kod burada görünecek..."
+                            readOnly={true}
+                            isLoading={isLoading}
+                        />
+                    </div>
+                </div>
+                 {error && (
+                    <div className="mt-4 text-red-400 bg-red-900/50 p-3 rounded-lg border border-red-700">
+                        {error}
+                    </div>
+                )}
+            </main>
+            <Footer />
+        </div>
+    );
+};
+
+//======= RENDER APP =======//
+const rootElement = document.getElementById('root');
+if (rootElement) {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+}
+
+</script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
