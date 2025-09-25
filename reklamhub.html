@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AdHub: Roblox & Discord</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-primary': '#7289DA', // Discord Blurple
+              'brand-secondary': '#43B581', // Discord Green
+              'gray-900': '#202225',
+              'gray-800': '#2f3136',
+              'gray-700': '#36393f',
+              'gray-600': '#4f545c',
+              'gray-400': '#d4d7dc',
+              'gray-200': '#ebedef',
+              'gray-100': '#f2f3f5',
+            },
+            animation: {
+              'fade-in': 'fade-in 0.5s ease-out forwards',
+              'fade-in-up': 'fade-in-up 0.6s ease-out forwards',
+            },
+            keyframes: {
+              'fade-in': {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              'fade-in-up': {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+            },
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-800 text-gray-200">
+    <div id="root"></div>
+    <script type="module">
+      import React from 'react';
+      import ReactDOM from 'react-dom/client';
+
+      // --- From types.ts ---
+      const AdType = {
+        Roblox: 'Roblox',
+        Discord: 'Discord',
+      };
+
+      // --- From context/AuthContext.tsx ---
+      const { createContext, useState, useEffect, useContext, useCallback } = React;
+      const AuthContext = createContext(null);
+
+      const getStoredUsers = () => {
+          const usersJson = localStorage.getItem('users');
+          return usersJson ? JSON.parse(usersJson) : [];
+      };
+      const storeUsers = (users) => {
+          localStorage.setItem('users', JSON.stringify(users));
+      };
+      const getStoredAdminKeys = () => {
+          const keysJson = localStorage.getItem('adminKeys');
+          return keysJson ? JSON.parse(keysJson) : [];
+      };
+      const storeAdminKeys = (keys) => {
+          localStorage.setItem('adminKeys', JSON.stringify(keys));
+      };
+
+      const AuthProvider = ({ children }) => {
+        const [currentUser, setCurrentUser] = useState(null);
+        const [adminKeys, setAdminKeys] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+          try {
+            const storedUserJson = localStorage.getItem('currentUser');
+            if (storedUserJson) {
+              setCurrentUser(JSON.parse(storedUserJson));
+            }
+            setAdminKeys(getStoredAdminKeys());
+          } catch (error) {
+            console.error("Failed to parse data from localStorage", error);
+            localStorage.removeItem('currentUser');
+          } finally {
+            setLoading(false);
+          }
+        }, []);
+
+        const login = useCallback(async (username, password_do_not_use) => {
+          if (username === 'reklamcidayi' && password_do_not_use === '123dayi123') {
+            const adminUser = { id: 'admin', username: 'reklamcidayi', isAdmin: true };
+            setCurrentUser(adminUser);
+            localStorage.setItem('currentUser', JSON.stringify(adminUser));
+            return true;
+          }
+          const users = getStoredUsers();
+          const user = users.find(u => u.username === username);
+          if (user) {
+            setCurrentUser(user);
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            return true;
+          }
+          return false;
+        }, []);
+
+        const register = useCallback(async (username, password_do_not_use) => {
+          const users = getStoredUsers();
+          if (users.some(u => u.username === username) || username === 'reklamcidayi') {
+              return false;
+          }
+          const newUser = { id: `user-${Date.now()}`, username, isAdmin: false };
+          storeUsers([...users, newUser]);
+          return true;
+        }, []);
+
+        const logout = useCallback(() => {
+          setCurrentUser(null);
+          localStorage.removeItem('currentUser');
+        }, []);
+
+        const generateAdminKey = useCallback(() => {
+          if (currentUser?.username !== 'reklamcidayi') {
+              return null; // Only root admin can generate keys
+          }
+          const newKey = `ADMHUB-${Date.now().toString(36).toUpperCase()}`;
+          setAdminKeys(prevKeys => {
+              const updatedKeys = [...prevKeys, newKey];
+              storeAdminKeys(updatedKeys);
+              return updatedKeys;
+          });
+          return newKey;
+        }, [currentUser]);
+
+        const redeemAdminKey = useCallback(async (key) => {
+          if (!currentUser || currentUser.isAdmin) return false;
+          
+          const keys = getStoredAdminKeys();
+          if (!keys.includes(key)) return false;
+
+          const users = getStoredUsers();
+          const userIndex = users.findIndex(u => u.id === currentUser.id);
+          if (userIndex === -1) return false;
+          
+          const updatedUser = { ...users[userIndex], isAdmin: true };
+          users[userIndex] = updatedUser;
+          storeUsers(users);
+          
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+
+          const updatedKeys = keys.filter(k => k !== key);
+          setAdminKeys(updatedKeys);
+          storeAdminKeys(updatedKeys);
+          
+          return true;
+        }, [currentUser]);
+
+        if (loading) {
+            return (
+              React.createElement('div', { className: "flex items-center justify-center h-screen bg-gray-900" },
+                  React.createElement('div', { className: "text-xl text-brand-primary" }, "Loading...")
+              )
+            );
+        }
+
+        return (
+          React.createElement(AuthContext.Provider, { value: { currentUser, login, logout, register, generateAdminKey, redeemAdminKey, adminKeys } },
+            children
+          )
+        );
+      };
+
+      const useAuth = () => {
+        const context = useContext(AuthContext);
+        if (!context) {
+          throw new Error('useAuth must be used within an AuthProvider');
+        }
+        return context;
+      };
+      
+      // --- From components/AdForm.tsx ---
+      const AdForm = ({ addAd, setPage }) => {
+          const [title, setTitle] = useState('');
+          const [description, setDescription] = useState('');
+          const [type, setType] = useState(AdType.Roblox);
+          const [imageUrl, setImageUrl] = useState('');
+          const [link, setLink] = useState('');
+          const [error, setError] = useState('');
+
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              setError('');
+              if (!title || !description || !imageUrl || !link) {
+                  setError('Please fill out all fields.');
+                  return;
+              }
+              addAd({ title, description, type, imageUrl, link });
+              setTitle('');
+              setDescription('');
+              setType(AdType.Roblox);
+              setImageUrl('');
+              setLink('');
+              setPage('home');
+          };
+
+          return (
+              React.createElement('div', { className: "bg-gray-700 p-8 rounded-lg shadow-xl animate-fade-in" },
+                  React.createElement('h2', { className: "text-2xl font-bold text-white mb-6" }, "Create New Advertisement"),
+                  error && React.createElement('p', { className: "bg-red-500 text-white p-3 rounded mb-4 text-center animate-fade-in" }, error),
+                  React.createElement('form', { onSubmit: handleSubmit, className: "space-y-6" },
+                      React.createElement('div', null,
+                          React.createElement('label', { htmlFor: "title", className: "block text-sm font-medium text-gray-300" }, "Title"),
+                          React.createElement('input', { type: "text", id: "title", value: title, onChange: (e) => setTitle(e.target.value), className: "mt-1 block w-full bg-gray-800 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-brand-primary focus:border-brand-primary transition-shadow duration-300" })
+                      ),
+                      React.createElement('div', null,
+                          React.createElement('label', { htmlFor: "description", className: "block text-sm font-medium text-gray-300" }, "Description"),
+                          React.createElement('textarea', { id: "description", value: description, onChange: (e) => setDescription(e.target.value), rows: 3, className: "mt-1 block w-full bg-gray-800 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-brand-primary focus:border-brand-primary transition-shadow duration-300" })
+                      ),
+                      React.createElement('div', null,
+                          React.createElement('label', { htmlFor: "type", className: "block text-sm font-medium text-gray-300" }, "Type"),
+                          React.createElement('select', { id: "type", value: type, onChange: (e) => setType(e.target.value), className: "mt-1 block w-full bg-gray-800 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-brand-primary focus:border-brand-primary transition-shadow duration-300" },
+                              React.createElement('option', { value: AdType.Roblox }, "Roblox"),
+                              React.createElement('option', { value: AdType.Discord }, "Discord")
+                          )
+                      ),
+                      React.createElement('div', null,
+                          React.createElement('label', { htmlFor: "imageUrl", className: "block text-sm font-medium text-gray-300" }, "Image URL"),
+                          React.createElement('input', { type: "text", id: "imageUrl", value: imageUrl, onChange: (e) => setImageUrl(e.target.value), placeholder: "e.g., https://picsum.photos/400/300", className: "mt-1 block w-full bg-gray-800 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-brand-primary focus:border-brand-primary transition-shadow duration-300" })
+                      ),
+                      React.createElement('div', null,
+                          React.createElement('label', { htmlFor: "link", className: "block text-sm font-medium text-gray-300" }, "Game/Server Link"),
+                          React.createElement('input', { type: "text", id: "link", value: link, onChange: (e) => setLink(e.target.value), className: "mt-1 block w-full bg-gray-800 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-brand-primary focus:border-brand-primary transition-shadow duration-300" })
+                      ),
+                      React.createElement('div', { className: "flex justify-end" },
+                          React.createElement('button', { type: "submit", className: "inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary focus:ring-offset-gray-700 transition-all duration-300 transform hover:scale-105 active:scale-95" }, "Post Ad")
+                      )
+                  )
+              )
+          );
+      };
+      
+      // --- From components/pages/AdminDashboard.tsx ---
+      const AdminDashboard = ({ addAd, setPage }) => {
+          const { currentUser, generateAdminKey, adminKeys } = useAuth();
+          const isRootAdmin = currentUser?.username === 'reklamcidayi';
+
+          const handleGenerateKey = () => {
+              const newKey = generateAdminKey();
+              if (newKey) {
+                  navigator.clipboard.writeText(newKey);
+                  alert(`New admin key generated and copied to clipboard:\n\n${newKey}`);
+              }
+          };
+
+          return (
+              React.createElement('div', { className: "max-w-4xl mx-auto animate-fade-in-up" },
+                  React.createElement('h1', { className: "text-3xl font-bold text-white mb-8 border-b-2 border-gray-600 pb-2" }, "Admin Dashboard"),
+                  isRootAdmin && (
+                      React.createElement('div', { className: "bg-gray-700 p-6 rounded-lg shadow-xl mb-8" },
+                          React.createElement('h2', { className: "text-2xl font-bold text-white mb-4" }, "Admin Key Management"),
+                          React.createElement('div', { className: "mb-4" },
+                              React.createElement('button', {
+                                  onClick: handleGenerateKey,
+                                  className: "inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-gray-800 transition-all duration-300 transform hover:scale-105 active:scale-95"
+                              }, "Generate New Key")
+                          ),
+                          adminKeys.length > 0 ? (
+                              React.createElement('div', null,
+                                  React.createElement('h3', { className: "text-lg font-semibold text-gray-300 mb-2" }, "Active Keys:"),
+                                  React.createElement('ul', { className: "space-y-2" },
+                                      adminKeys.map(key => (
+                                          React.createElement('li', { key: key, className: "bg-gray-800 p-2 rounded-md text-sm text-gray-400 font-mono" }, key)
+                                      ))
+                                  )
+                              )
+                          ) : (
+                              React.createElement('p', { className: "text-gray-400" }, "No active admin keys.")
+                          )
+                      )
+                  ),
+                  React.createElement(AdForm, { addAd: addAd, setPage: setPage })
+              )
+          );
+      };
+      
+      // --- From components/AdCard.tsx ---
+      const AdCard = ({ ad, deleteAd }) => {
+          const { currentUser } = useAuth();
+          const isRoblox = ad.type === AdType.Roblox;
+          const tagColor = isRoblox ? 'bg-red-500' : 'bg-brand-primary';
+          const buttonText = isRoblox ? 'Play Now' : 'Join Server';
+
+          const handleContextMenu = (e) => {
+              if (currentUser?.isAdmin) {
+                  e.preventDefault();
+                  if (window.confirm(`Are you sure you want to delete the ad "${ad.title}"?`)) {
+                      deleteAd(ad.id);
+                  }
+              }
+          };
+
+          return (
+              React.createElement('div', {
+                  className: "bg-gray-700 rounded-lg overflow-hidden shadow-lg hover:shadow-brand-primary/40 transform hover:-translate-y-2 transition-all duration-300 flex flex-col h-full",
+                  onContextMenu: handleContextMenu,
+                  style: { cursor: currentUser?.isAdmin ? 'context-menu' : 'default' },
+                  title: currentUser?.isAdmin ? 'Right-click to delete this ad' : ''
+              },
+                  React.createElement('div', { className: "relative" },
+                      React.createElement('img', { className: "w-full h-48 object-cover", src: ad.imageUrl, alt: ad.title }),
+                      React.createElement('span', { className: `absolute top-2 right-2 text-white text-xs font-bold px-2 py-1 rounded ${tagColor}` }, ad.type)
+                  ),
+                  React.createElement('div', { className: "p-6 flex-grow flex flex-col" },
+                      React.createElement('h3', { className: "text-2xl font-bold text-white mb-2" }, ad.title),
+                      React.createElement('p', { className: "text-gray-400 flex-grow mb-4" }, ad.description),
+                      React.createElement('a', {
+                          href: ad.link,
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          className: "mt-auto block w-full text-center bg-brand-secondary hover:opacity-90 text-white font-bold py-2 px-4 rounded transition-all duration-300 active:scale-95"
+                      }, buttonText)
+                  )
+              )
+          );
+      };
+      
+      // --- From components/pages/Login.tsx ---
+      const Login = ({ setPage }) => {
+          const [username, setUsername] = useState('');
+          const [password, setPassword] = useState('');
+          const [error, setError] = useState('');
+          const { login } = useAuth();
+
+          const handleSubmit = async (e) => {
+              e.preventDefault();
+              setError('');
+              if (!username || !password) {
+                  setError('Please fill in both fields.');
+                  return;
+              }
+              const success = await login(username, password);
+              if (success) {
+                  setPage('home');
+              } else {
+                  setError('Invalid username or password.');
+              }
+          };
+
+          return (
+              React.createElement('div', { className: "flex items-center justify-center animate-fade-in" },
+                  React.createElement('div', { className: "w-full max-w-md bg-gray-700 p-8 rounded-lg shadow-lg" },
+                      React.createElement('h2', { className: "text-3xl font-bold text-center text-white mb-6" }, "Login"),
+                      error && React.createElement('p', { className: "bg-red-500 text-white p-3 rounded mb-4 text-center animate-fade-in" }, error),
+                      React.createElement('form', { onSubmit: handleSubmit },
+                          React.createElement('div', { className: "mb-4" },
+                              React.createElement('label', { className: "block text-gray-300 text-sm font-bold mb-2", htmlFor: "username" }, "Username"),
+                              React.createElement('input', { id: "username", type: "text", value: username, onChange: (e) => setUsername(e.target.value), className: "w-full px-3 py-2 text-gray-200 bg-gray-800 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow duration-300", placeholder: "Enter your username", autoComplete: "username" })
+                          ),
+                          React.createElement('div', { className: "mb-6" },
+                              React.createElement('label', { className: "block text-gray-300 text-sm font-bold mb-2", htmlFor: "password" }, "Password"),
+                              React.createElement('input', { id: "password", type: "password", value: password, onChange: (e) => setPassword(e.target.value), className: "w-full px-3 py-2 text-gray-200 bg-gray-800 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow duration-300", placeholder: "************", autoComplete: "current-password" })
+                          ),
+                          React.createElement('button', { type: "submit", className: "w-full bg-brand-primary hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95" }, "Sign In")
+                      ),
+                       React.createElement('p', { className: "text-center text-gray-400 text-sm mt-6" },
+                          "Don't have an account? ",
+                          React.createElement('button', { onClick: () => setPage('register'), className: "text-brand-primary hover:underline font-bold transition-transform duration-150 hover:scale-105" }, "Register here")
+                      )
+                  )
+              )
+          );
+      };
+      
+      // --- From components/pages/Register.tsx ---
+      const Register = ({ setPage }) => {
+          const [username, setUsername] = useState('');
+          const [password, setPassword] = useState('');
+          const [error, setError] = useState('');
+          const [success, setSuccess] = useState('');
+          const { register } = useAuth();
+
+          const handleSubmit = async (e) => {
+              e.preventDefault();
+              setError('');
+              setSuccess('');
+              if (!username || !password) {
+                  setError('Please fill in all fields.');
+                  return;
+              }
+              if (password.length < 3) {
+                  setError('Password must be at least 3 characters long.');
+                  return;
+              }
+              
+              const wasSuccessful = await register(username, password);
+              if (wasSuccessful) {
+                  setSuccess('Registration successful! You can now log in.');
+                  setUsername('');
+                  setPassword('');
+                  setTimeout(() => setPage('login'), 2000);
+              } else {
+                  setError('Username is already taken.');
+              }
+          };
+          
+          return (
+              React.createElement('div', { className: "flex items-center justify-center animate-fade-in" },
+                  React.createElement('div', { className: "w-full max-w-md bg-gray-700 p-8 rounded-lg shadow-lg" },
+                      React.createElement('h2', { className: "text-3xl font-bold text-center text-white mb-6" }, "Create Account"),
+                      error && React.createElement('p', { className: "bg-red-500 text-white p-3 rounded mb-4 text-center animate-fade-in" }, error),
+                      success && React.createElement('p', { className: "bg-green-500 text-white p-3 rounded mb-4 text-center animate-fade-in" }, success),
+                      React.createElement('form', { onSubmit: handleSubmit },
+                          React.createElement('div', { className: "mb-4" },
+                              React.createElement('label', { className: "block text-gray-300 text-sm font-bold mb-2", htmlFor: "username" }, "Username"),
+                              React.createElement('input', { id: "username", type: "text", value: username, onChange: (e) => setUsername(e.target.value), className: "w-full px-3 py-2 text-gray-200 bg-gray-800 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow duration-300", placeholder: "Choose a username", autoComplete: "username" })
+                          ),
+                          React.createElement('div', { className: "mb-6" },
+                              React.createElement('label', { className: "block text-gray-300 text-sm font-bold mb-2", htmlFor: "password" }, "Password"),
+                              React.createElement('input', { id: "password", type: "password", value: password, onChange: (e) => setPassword(e.target.value), className: "w-full px-3 py-2 text-gray-200 bg-gray-800 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow duration-300", placeholder: "************", autoComplete: "new-password" })
+                          ),
+                          React.createElement('button', { type: "submit", className: "w-full bg-brand-primary hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95" }, "Register")
+                      ),
+                       React.createElement('p', { className: "text-center text-gray-400 text-sm mt-6" },
+                          "Already have an account? ",
+                          React.createElement('button', { onClick: () => setPage('login'), className: "text-brand-primary hover:underline font-bold transition-transform duration-150 hover:scale-105" }, "Login here")
+                      )
+                  )
+              )
+          );
+      };
+
+      // --- From components/pages/Home.tsx ---
+      const Home = ({ ads, deleteAd }) => {
+          return (
+              React.createElement('div', { className: "animate-fade-in" },
+                  React.createElement('div', { className: "text-center mb-12" },
+                      React.createElement('h1', { className: "text-4xl sm:text-5xl font-extrabold text-white tracking-tight animate-fade-in-up", style: { animationDelay: '0.2s', opacity: 0 } },
+                          "Discover New ",
+                          React.createElement('span', { className: "text-brand-primary" }, "Communities")
+                      ),
+                      React.createElement('p', { className: "mt-4 text-lg text-gray-400 max-w-2xl mx-auto animate-fade-in-up", style: { animationDelay: '0.4s', opacity: 0 } },
+                          "Browse advertisements for the best Roblox games and Discord servers."
+                      )
+                  ),
+                  ads.length > 0 ? (
+                      React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" },
+                          ads.map((ad, index) => (
+                              React.createElement('div', { key: ad.id, className: "animate-fade-in-up", style: { animationDelay: `${0.5 + index * 0.1}s`, opacity: 0 } },
+                                 React.createElement(AdCard, { ad: ad, deleteAd: deleteAd })
+                              )
+                          ))
+                      )
+                  ) : (
+                      React.createElement('div', { className: "text-center py-16 animate-fade-in", style: { animationDelay: '0.6s', opacity: 0 } },
+                          React.createElement('svg', { className: "mx-auto h-12 w-12 text-gray-500", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", "aria-hidden": "true" },
+                              React.createElement('path', { vectorEffect: "non-scaling-stroke", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" })
+                          ),
+                          React.createElement('h3', { className: "mt-2 text-2xl font-medium text-white" }, "No Advertisements Yet"),
+                          React.createElement('p', { className: "mt-1 text-md text-gray-400" }, "Check back later or if you are an admin, post a new ad!")
+                      )
+                  )
+              )
+          );
+      };
+
+      // --- From components/Header.tsx ---
+      const NavButton = ({ onClick, children, className = '' }) => (
+          React.createElement('button',
+              {
+                  onClick: onClick,
+                  className: `text-gray-200 hover:text-white transition-all duration-300 px-3 py-2 rounded-md text-sm font-medium transform hover:scale-105 active:scale-95 ${className}`
+              },
+              children
+          )
+      );
+
+      const Header = ({ setPage }) => {
+        const { currentUser, logout, redeemAdminKey } = useAuth();
+
+        const handleLogout = () => {
+          logout();
+          setPage('home');
+        };
+
+        const handleBecomeAdmin = async () => {
+          const key = window.prompt("Please enter your admin key:");
+          if (key) {
+              const success = await redeemAdminKey(key);
+              if (success) {
+                  alert("Success! You have been granted admin privileges.");
+              } else {
+                  alert("Invalid or expired admin key.");
+              }
+          }
+        };
+
+        return (
+          React.createElement('header', { className: "bg-gray-700 shadow-lg sticky top-0 z-50" },
+            React.createElement('nav', { className: "container mx-auto px-4 sm:px-6 lg:px-8" },
+              React.createElement('div', { className: "flex items-center justify-between h-16" },
+                React.createElement('div', { className: "flex items-center" },
+                  React.createElement('button', { onClick: () => setPage('home'), className: "flex-shrink-0 text-white font-bold text-xl tracking-wider transition-transform duration-300 hover:scale-105" }, "AdHub")
+                ),
+                React.createElement('div', { className: "flex items-center space-x-2" },
+                  currentUser ? (
+                    React.createElement(React.Fragment, null,
+                      React.createElement('span', { className: "text-gray-300 text-sm hidden sm:block" }, `Welcome, ${currentUser.username}!`),
+                      currentUser.isAdmin ? (
+                        React.createElement(NavButton, { onClick: () => setPage('admin') }, "Admin")
+                      ) : (
+                        React.createElement(NavButton, { onClick: handleBecomeAdmin, className: "text-yellow-400 hover:text-yellow-300" }, "Become Admin!")
+                      ),
+                      React.createElement('button', {
+                        onClick: handleLogout,
+                        className: "bg-red-500 text-white hover:bg-red-600 transition-all duration-300 px-3 py-2 rounded-md text-sm font-medium transform hover:scale-105 active:scale-95"
+                      }, "Logout")
+                    )
+                  ) : (
+                    React.createElement(React.Fragment, null,
+                      React.createElement(NavButton, { onClick: () => setPage('login') }, "Login"),
+                      React.createElement('button', {
+                        onClick: () => setPage('register'),
+                        className: "bg-brand-primary text-white hover:bg-opacity-80 transition-all duration-300 px-3 py-2 rounded-md text-sm font-medium transform hover:scale-105 active:scale-95"
+                      }, "Register")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        );
+      };
+
+      // --- From App.tsx ---
+      const AppContent = () => {
+          const [page, setPage] = useState('home');
+          const { currentUser } = useAuth();
+          const [ads, setAds] = useState([]);
+
+          useEffect(() => {
+              try {
+                  const storedAds = localStorage.getItem('ads');
+                  setAds(storedAds ? JSON.parse(storedAds) : []);
+              } catch (error) {
+                  console.error("Failed to load ads from localStorage", error);
+                  setAds([]);
+              }
+          }, []);
+
+          const addAd = (newAd) => {
+              setAds(prevAds => {
+                  const updatedAds = [...prevAds, { ...newAd, id: `ad-${Date.now()}` }];
+                  localStorage.setItem('ads', JSON.stringify(updatedAds));
+                  return updatedAds;
+              });
+          };
+
+          const deleteAd = (adId) => {
+              setAds(prevAds => {
+                  const updatedAds = prevAds.filter(ad => ad.id !== adId);
+                  localStorage.setItem('ads', JSON.stringify(updatedAds));
+                  return updatedAds;
+              });
+          };
+
+          const renderPage = () => {
+              if (page === 'admin' && currentUser?.isAdmin) {
+                  return React.createElement(AdminDashboard, { addAd: addAd, setPage: setPage });
+              }
+              switch (page) {
+                  case 'login':
+                      return React.createElement(Login, { setPage: setPage });
+                  case 'register':
+                      return React.createElement(Register, { setPage: setPage });
+                  case 'home':
+                  default:
+                      return React.createElement(Home, { ads: ads, deleteAd: deleteAd });
+              }
+          };
+          
+          return (
+              React.createElement('div', { className: "min-h-screen bg-gray-900 font-sans" },
+                  React.createElement(Header, { setPage: setPage }),
+                  React.createElement('main', { className: "container mx-auto px-4 py-8" },
+                      renderPage()
+                  )
+              )
+          );
+      };
+
+      const App = () => {
+        return (
+          React.createElement(AuthProvider, null,
+            React.createElement(AppContent, null)
+          )
+        );
+      };
+
+      // --- From index.tsx (Mounting logic) ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        React.createElement(React.StrictMode, null,
+          React.createElement(App, null)
+        )
+      );
+
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
